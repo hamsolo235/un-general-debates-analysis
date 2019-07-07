@@ -1,0 +1,5 @@
+"0","ungd_dtm_ldavis <- convert(ungd_dfm, to = ""lda"")
+"
+"2","Error in dfm2lda(x) : 
+  You must install the slam package installed for this conversion.
+"

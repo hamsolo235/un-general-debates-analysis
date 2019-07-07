@@ -1,0 +1,119 @@
+"0","knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, error = FALSE)"
+"0","library(tidytext)"
+"2","package ‘tidytext’ was built under R version 3.5.2"
+"0","library(quanteda)"
+"2","package ‘quanteda’ was built under R version 3.5.2"
+"2","Package version: 1.5.0
+"
+"2","Parallel computing: 2 of 4 threads used.
+"
+"2","See https://quanteda.io for tutorials and examples.
+"
+"2","
+Attaching package: ‘quanteda’
+
+"
+"2","The following object is masked from ‘package:utils’:
+
+    View
+
+"
+"0","library(ggplot2)"
+"2","package ‘ggplot2’ was built under R version 3.5.2"
+"0","library(tidyverse)"
+"2","[37m── [1mAttaching packages[22m ──────────────────────────────────────────────────────────────────────── tidyverse 1.2.1 ──[39m
+"
+"2","[37m[32m✔[37m [34mtibble [37m 1.4.2     [32m✔[37m [34mpurrr  [37m 0.2.5
+[32m✔[37m [34mtidyr  [37m 0.8.3     [32m✔[37m [34mdplyr  [37m 0.7.6
+[32m✔[37m [34mreadr  [37m 1.1.1     [32m✔[37m [34mstringr[37m 1.3.1
+[32m✔[37m [34mtibble [37m 1.4.2     [32m✔[37m [34mforcats[37m 0.3.0[39m
+"
+"2","package ‘tidyr’ was built under R version 3.5.2"
+"2","[37m── [1mConflicts[22m ─────────────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
+[31m✖[37m [34mdplyr[37m::[32mfilter()[37m masks [34mstats[37m::filter()
+[31m✖[37m [34mdplyr[37m::[32mlag()[37m    masks [34mstats[37m::lag()[39m
+"
+"0","library(tidyr)"
+"0","library(readtext)"
+"2","package ‘readtext’ was built under R version 3.5.2"
+"0","library(lda)"
+"0","library(LDAvis)"
+"0","library(ggpubr)"
+"2","package ‘ggpubr’ was built under R version 3.5.2"
+"2","Loading required package: magrittr
+"
+"2","
+Attaching package: ‘magrittr’
+
+"
+"2","The following object is masked from ‘package:purrr’:
+
+    set_names
+
+"
+"2","The following object is masked from ‘package:tidyr’:
+
+    extract
+
+"
+"0","library(plm)"
+"2","package ‘plm’ was built under R version 3.5.2"
+"2","
+Attaching package: ‘plm’
+
+"
+"2","The following objects are masked from ‘package:dplyr’:
+
+    between, lag, lead
+
+"
+"0","library(lmtest)"
+"2","package ‘lmtest’ was built under R version 3.5.2"
+"2","Loading required package: zoo
+"
+"2","package ‘zoo’ was built under R version 3.5.2"
+"2","
+Attaching package: ‘zoo’
+
+"
+"2","The following objects are masked from ‘package:base’:
+
+    as.Date, as.Date.numeric
+
+"
+"0","library(stargazer)"
+"2","
+Please cite as: 
+
+"
+"2"," Hlavac, Marek (2018). stargazer: Well-Formatted Regression and Summary Statistics Tables.
+"
+"2"," R package version 5.2.2. https://CRAN.R-project.org/package=stargazer 
+
+"
+"0","library(randomForest)"
+"2","randomForest 4.6-14
+"
+"2","Type rfNews() to see new features/changes/bug fixes.
+"
+"2","
+Attaching package: ‘randomForest’
+
+"
+"2","The following object is masked from ‘package:dplyr’:
+
+    combine
+
+"
+"2","The following object is masked from ‘package:ggplot2’:
+
+    margin
+
+"
+"0","library(boot)"
+"0","library(e1071)"
+"2","package ‘e1071’ was built under R version 3.5.2"
+"0","library(classInt)"
+"2","package ‘classInt’ was built under R version 3.5.2"
+"0","library(countrycode)"
+"0","library(printr)"
