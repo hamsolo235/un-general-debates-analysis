@@ -1,0 +1,661 @@
+---
+title: "Can levels of fear and anger expressed at the UN General Debate signal elevated military spending?"
+output: pdf_document
+bibliography: Bibliography.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, error = FALSE)
+library(tidytext)
+library(quanteda)
+library(ggplot2)
+library(tidyverse)
+library(tidyr)
+library(readtext)
+library(lda)
+library(LDAvis)
+library(ggpubr)
+library(plm)
+library(lmtest)
+library(stargazer)
+library(randomForest)
+library(boot)
+library(e1071)
+library(classInt)
+library(countrycode)
+library(printr)
+setwd("/Users/admin/Documents/MSc Public Policy/Quantitative methods/Assignments/WPNQ3")
+```
+
+#Introduction
+"[A] quick glance at the state of research on emotions in international relations shows that, while innovative studies have been undertaken on the topic, there is still need to develop, explore and especially test theories and methods." [@Arif_2016]. This paper aims to address this gap by empirically testing whether government representatives’ emotions can be a significant predictor of military spending. 
+
+This paper will operationalise a non-rational, emotional variable – indicative of fear and anger expressed by governments – which can be used to explain military spending. A quantitative score of fear and anger relating to foreign policy (hereafter, a 'sentiment score') will be derived from analysis of United Nations General Debate speeches using topic modelling (Latent Dirichlet Allocation or 'LDA' [@Blei_2003]), and sentiment analysis. The objective of the paper is twofold: firstly, to ascertain whether sentiment score is a statistically significant predictor of states’ military spending, and secondly, to develop predictive models for whether a state will spend highly on its military in a given year. 
+
+Three datasets were used: UN General Debate speeches between 1991 and 2000 [@Mikh_2014], data published in @Bohm_2014, and the Correlates of War militarised interstate disputes dataset (v4.1) [@Palm_2015]. To address the first aim of the paper, a linear model was fitted regressing military spending on sentiment score. For the second, a comparison of classification techniques – logistic regression, random forests and support vector machines – ascertained whether a predictive model of supernormal military spending is possible using sentiment scores and other predictors. I conclude that sentiment scores appear to have a small but notable effect on military spending but are of limited importance in predictive models.
+
+#Literature review  
+As @Arif_2016 note, a widespread assumption of rational expectations and the pursuit of "interests" among the dominant theoretical approaches to international relations has led to the neglect of emotional determinants of state behaviour. For example, regarding the neo-realist school, they note that a select few emotions like fear or envy have been “overrationalised” [@Arif_2016, p.1]. Theorists like @Waltz_1979 or @Mear_2001, who espouse the rational pursuit of a balance of power or hegemony respectively, could also explain the empirical basis of their theories through emotional responses of fear, envy or anger among decision makers. 
+
+@Craw_2000 criticises realists’ neglect of human responses to fear and liberal institutionalist’s neglect of emotional motivations for co-operation beyond mutual interests. Crawford also notes that where psychology has been considered, the focus tends to be on cognition rather than emotion, emphasising rationality over irrationality. While historically, international relations theory has taken into account emotions, this style of theorising fell out of favour in the post-war era [@Craw_2000, pp.120-123]. Where emotion has attracted the attention of international relations or policy theorists, it has mostly been examined using qualitative methods like discourse analysis [@Clem_2018]. In contrast, this paper investigates whether a quantitative approach can contribute to a neglected part of the discipline.
+
+This paper builds on multicountry studies of military expenditure by @Bohm2_2014 and @Nord_2012, using as control variables a number of predictors they identify. Methodologically, their variables represent those implied by a rationalistic approach, explored further in the next section. 
+
+#Theoretical framework
+We can broadly classify the determinants of military spending from a rational choice perspective into two categories. Firstly, capability based spending is pre-emptive and based on the resources available to a state, which allows for greater military investment. The second is imperative-based; if a country is at war or observes high spending by hostile powers, then it is incentivised to spend more. Both of these categories demonstrate a clear logic of incentives and self-interest. 
+
+Domestic politics may also play a role. For instance, we would expect autocracies to be more reliant on militaries to maintain law and order given that such regimes often lack a functional judiciary, or that democracies are less likely to fight. Therefore, we may also expect the extent to which a country can be considered democratic to be a potential predictor of military spending levels. 
+
+In addition to that driven by government characteristics or incentives in the international state system, I define ‘emotionally motivated' military spending as that driven by fear and anger, as expressed by state representatives. Hence, the causal claim investigated in this paper is as follows: if high levels of these emotions are shown by state representatives then governments are likely to overestimate threats, leading to increased military expenditure. 
+
+We can now frame two hypotheses: 
+
+> *H1: Higher levels of fear and anger, as expressed by state governments, are associated with increases in military spending.*  
+> *H2: Models specified to include levels of fear and anger among other predictors can predict whether a country engages in supernormal levels of military spending in a given year.*
+
+
+#Methodology and research design
+
+This paper considers UN member states between 1991 and 2000 – the period between the end of the Cold War and the 9/11 attacks – given the period’s stability relative to the those that preceded and succeeded it. The data is panel-structured, with each observation corresponding to an individual state in a given year. 
+
+##Constructing a sentiment score
+
+The NRC sentiment lexicon [@Moha_2013] was used to identify words indicating fear or anger in the speech corpus. Word counts by speech were generated using these lexicons to give a raw sentiment score by country by year, which were then indexed against each country’s 1991 scores, set at 100. Scores were indexed because this enhances interpretability: we are interested in changes in spending in a given year so the change in sentiment in that year is more useful than a raw word count. 
+
+Having constructed an indexed sentiment score, an LDA topic model was used to identify fifteen topics within the corpus. The intuition behind topic modelling is that “documents exhibit multiple topics… [where] a topic [is] a distribution over a fixed vocabulary” [@Blei_2012]. LDA is a computational method that allows us to discover these hidden topic variables based on the terms observed in each document. Of the fifteen topics, those that reflected security or foreign policy issues in their top 30 terms were selected. An example is reproduced below, showing country names in a specific region and conflict-related terms, indicating foreign policy relevance. 
+
+```{r sentiment_variable, include = FALSE, cache = TRUE}
+#Creating corpus
+ungd_debates <- readtext("UNGDC 1970-2016.zip",
+                         ignore_missing_files = TRUE,
+                         docvarsfrom = "filenames",
+                         dvsep = "_",
+                         docvarnames = c("country", "session", "year"),
+                         verbosity = 0)
+ungd_corpus <- corpus(ungd_debates)
+
+#subset for required time period
+ungd_corpus_sent <- corpus_subset(ungd_corpus, year > 1990 & year < 2001)
+ungd_corpus_final <- corpus_subset(ungd_corpus, year > 1991 & year < 2001)
+
+#Topic model to identify security/military spending as topic of interest and for weighting of sentiment
+#first create dfm and convert for use with lda model
+ungd_dfm <- dfm(ungd_corpus_final, 
+                stem = TRUE, 
+                remove = stopwords("SMART"),
+                remove_punct = TRUE,
+                remove_numbers = TRUE)
+ungd_dfm <- dfm_trim(ungd_dfm, min_count = 10, min_docfreq = 10)
+
+ungd_dtm_ldavis <- convert(ungd_dfm, to = "lda")
+ungd_dtm_topicmodels <- convert(ungd_dfm, to = "topicmodels")
+
+#using LDAvis
+set.seed(1)
+alpha <- 0.02
+eta <- 0.02
+topic_model <- lda.collapsed.gibbs.sampler(documents = ungd_dtm_ldavis$documents, 
+                                             K = 15,
+                                             alpha = alpha,
+                                             eta = eta, 
+                                             vocab = ungd_dtm_ldavis$vocab,
+                                             num.iterations = 1000, 
+                                             initial = NULL, 
+                                             burnin = 0,
+                                             compute.log.likelihood = TRUE)
+
+phi <- t(apply(topic_model$topics + eta, 1, function(x) x/sum(x)))
+theta <- t(apply(topic_model$document_sums + alpha, 2, function(x) x/sum(x)))
+
+doc_length <- sapply(ungd_dtm_ldavis$documents, function(x) { sum(x[2,]) })
+
+json_vis <- createJSON(phi = phi,
+                       theta = theta,
+                       doc.length = doc_length,
+                       vocab = ungd_dtm_ldavis$vocab,
+                       term.frequency = colSums(ungd_dfm))
+
+#Run below and selected topic to show visualisation used for image in paper
+#serVis(json_vis, open.browser = TRUE)
+
+#Pick 5,7,8,11,10,13,14,15 as conflict topics
+sent_weights <- rowSums(theta[,c(5,7,8,11,10,13,14,15)])
+
+#irrationality dictionary based on nrc lexicon
+irrational_sent <- get_sentiments("nrc") %>%
+  filter(sentiment == "fear" | sentiment == "anger")
+
+#Calculating sentiment scores
+
+#Tidy format
+ungd_corpus_td <- tidy(ungd_corpus_sent)
+
+#Word counts on sentiment dictionary and rescale to make 1991 a base year
+sentiment_scores <- ungd_corpus_td %>%
+  unnest_tokens(word, text) %>%
+  group_by(country, year) %>%
+  inner_join(irrational_sent) %>% 
+  count(word, sort = TRUE, sentiment) %>% 
+  summarize(sentiment = sum(n)) %>%
+  mutate(diff_sent = c(NA, diff(sentiment)))
+
+indexed_sent_scores <- as.numeric(rep(NA, nrow(sentiment_scores)))
+sentiment_scores <- data.frame(sentiment_scores, indexed_sent_scores)
+
+for (i in 1:nrow(sentiment_scores)) {
+  sentiment_scores$indexed_sent_scores[i] <- 
+    ifelse(sentiment_scores$year[i] == 1991, 100,
+           (sentiment_scores$sentiment[i]/sentiment_scores$sentiment[i-1])*sentiment_scores$indexed_sent_scores[i-1])
+}
+
+#rearrange into same order as docvars in corpus
+sentiment_scores <- sentiment_scores %>%
+  arrange(country) %>%
+  arrange(year) %>%
+  filter(year > 1991)
+
+#weight using topic probablities
+weighted_score <- sentiment_scores$indexed_sent_scores*sent_weights
+unindexed_weighted_scores <- sent_weights*sentiment_scores$sentiments
+```
+
+```{r LDA_vis}
+knitr::include_graphics('LDA_screenshot.png')
+```
+
+The posterior document probabilities for the selected topics, derived from the estimated distribution of topic variables across documents conditional on observed terms, were extracted from the model. These were multiplied by the indexed sentiment scores to provide a measure of fearful and angry sentiment expressed in UN speeches, weighted by foreign policy topics. 
+
+The map below shows sentiment score by country. Darker red represents higher scores. The highest scoring countries are in southeast Europe, reflecting ethnic conflicts that took place there over the 1990s. Persistently conflictual regions like the Middle East, particularly Iran, score relatively highly. Surprisingly, Russia does not score highly despite the fall of the USSR, while Australia and Spain score highly with little historical justification. These anomalies may be due to the measure being arbitrarily based to 1991, which fails to capture elevated sentiment levels in the base year if subsequent increases do not take place, even if sentiment remains elevated. 
+
+```{r map_vis_prep, include = FALSE, results = 'hide'}
+#Generate map visualisation
+docvars(ungd_corpus_final, "weighted_sent_scores") <- weighted_score
+ungd_docvardf <- as.data.frame(docvars(ungd_corpus_final))
+class_intervals <- classIntervals(ungd_docvardf$weighted_sent_scores,
+                                  rtimes = 9,
+                                  style = 'bclust')
+
+ungd_docvardf$weighted_sent_scores <- cut(ungd_docvardf$weighted_sent_scores, 
+                               include.lowest = TRUE,
+                               breaks = class_intervals$brks)
+world_map <- map_data("world")
+world_map$country <- countrycode(world_map$region,
+                                 "country.name",
+                                 "iso3c")
+#use dplyr package to merge sent score and map data
+world_map <- inner_join(world_map,
+                        ungd_docvardf,
+                        by = c("country"))
+world_map <- subset(world_map, select = c(lat, long, group, weighted_sent_scores))
+```
+
+```{r map_vis}
+#create plot
+ggplot(world_map, aes(long, lat, group = group)) +
+  ggtitle("Sentiment score world map") +
+  geom_polygon(aes(fill = weighted_sent_scores)) +
+  geom_path(color = "grey", size = 0.05) +
+  scale_fill_brewer(
+    palette = "Reds", 
+    labels = c(-1, rep("", 7), 1),
+    guide = guide_legend(
+      nrow = 1, 
+      label.hjust = 0.5, 
+      label.position = "bottom"
+    )) +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  theme(legend.position = "none",
+        plot.title = element_text(size = 7.5, hjust = 0.5),
+        axis.title = element_text(size = 7.5),
+        axis.line = element_line(color="black", size = 0.1),
+        axis.text = element_text(size = 5),
+        panel.background = element_rect(fill = "white"))
+```
+
+##Response variables: military spending and classes of expenditure
+Military spending, the response variable for the first hypothesis, will be measured as log transformed dollar values, given the wide spread in the data [@Bohm_2014]. 
+
+For the predictive models, I constructed a binary categorical variable labelled ‘Supernormal’ for a country in a given year where military spending is one standard deviation above that country's long-run average (the average over the preceding decade), and ‘Normal’ otherwise (i.e. a level of military spending showing a modest increase, in line with the long run average or a decrease). These categories were chosen because the question is focused on military spending increases rather than cuts. 
+
+As an initial attempt to discern a relationship between these categories and sentiment score, density plots are shown below. Both distributions have a right skew but the supernormal category on average scores more highly on sentiment score, implying that there may be empirical evidence for the theoretically posited relationship.
+
+```{r milex_class, include = FALSE}
+#Constructing response variable and adding country codes to Bohmelt data
+
+Bohmelt_data <- get(load("Bohmelt_data.RData"))
+country_codes <- read.csv("Country_codes.csv")
+names(country_codes)[names(country_codes) == "Country"] <- "NAMENEW"
+country_codes$NAMENEW <- as.character(country_codes$NAMENEW)
+
+Bohmelt_data <- Bohmelt_data %>%
+  filter(YEAR > 1981)
+
+Bohmelt_data$military_spending <- exp(Bohmelt_data$LMILEX)
+Bohmelt_data$GDP <- exp(Bohmelt_data$LNRGDP)
+
+Bohmelt_data$milex_10yr_mean <- NA
+for (i in 1:(nrow(Bohmelt_data)-10)) {
+  Bohmelt_data$milex_10yr_mean[i+10] <- mean(Bohmelt_data$military_spending[(i):(i+9)])
+}
+
+Bohmelt_data$milex_10yr_sd <- NA
+for (i in 1:(nrow(Bohmelt_data)-10)) {
+  Bohmelt_data$milex_10yr_sd[i+10] <- sd(Bohmelt_data$military_spending[(i):(i+9)])
+}
+
+Bohmelt_data <- Bohmelt_data %>%
+  filter(YEAR > 1990) %>%
+  mutate(milex_class = ifelse((military_spending - milex_10yr_mean) > milex_10yr_sd, 1, 0)) %>%
+  filter(YEAR >1991) %>%
+  full_join(country_codes, by = "NAMENEW") %>%
+  arrange(Code) %>%
+  arrange(YEAR) %>%
+  mutate(country_year = paste(YEAR, Code))
+
+Bohmelt_data$milex_class <- factor(Bohmelt_data$milex_class,
+                                   levels = c(1,0),
+                                   labels = c("Supernormal", "Normal"))
+
+#Adding sentiment scores to Bohmelt data
+docvars(ungd_corpus_final) <- docvars(ungd_corpus_final) %>%
+  mutate(country_year = paste(year, country))
+country_year_scores <- data.frame(docvars(ungd_corpus_final)$country_year, docvars(ungd_corpus_final)$weighted_sent_scores)
+names(country_year_scores)[names(country_year_scores) == "docvars.ungd_corpus_final..country_year"] <-
+  "country_year"
+names(country_year_scores)[names(country_year_scores) == "docvars.ungd_corpus_final..weighted_sent_scores"] <-
+  "sentiment_score"
+
+Bohmelt_data <- Bohmelt_data %>%
+  inner_join(country_year_scores, by = "country_year")
+```
+
+
+```{r class_sent_vis, include = TRUE}
+#Visualisation - excessive spend vs sentiment
+ggplot(Bohmelt_data, aes(sentiment_score, fill = milex_class)) + 
+  geom_density(alpha = 0.5, color = NA) +
+  ggtitle("Sentiment score density by military spending levels") +
+  xlab("Sentiment score") + 
+  ylab("Density") +
+  scale_fill_manual(values = c(rgb(188,50,63, maxColorValue = 255), rgb(161,194,223, maxColorValue = 255)), name = "Military spending level") + 
+  theme(plot.title = element_text(size = 7.5, hjust = 0.5),
+        legend.text = element_text(size = 7.5),
+        legend.title = element_text(size = 7.5),
+        axis.line = element_line(color="black", size = 0.1),
+        axis.text = element_text(size = 5),
+        axis.title = element_text(size = 7.5),
+        panel.background = element_rect(fill = "white"))
+```
+
+##Selecting control variables
+
+###GDP
+
+The plots below show the relationship between GDP and military spending – I used log-transformed variables given the wide variation in the raw data. A clear relationship emerges from the scatter plot that suggests GDP is a likely predictor of military expenditure. We also find that the mean and distribution of GDP for countries in the supernormal spending class is higher than the normal class.
+
+```{r gdp_milex, include = TRUE}
+GDP_scatter <- ggplot(Bohmelt_data, aes(x = LNRGDP, y = LMILEX, col = milex_class)) +
+  geom_point(stroke = 0.1) +
+  ggtitle("GDP versus military expenditure") +
+  ylab("Log military expenditure") +
+  xlab("Log GDP") +
+  scale_color_manual(values = c(rgb(188,50,63, maxColorValue = 255), rgb(161,194,223, maxColorValue = 255)), name = "Military spending level") +
+  theme(legend.position = "none",
+        plot.title = element_text(size = 7.5, hjust = 0.5),
+        legend.text = element_text("none"),
+        axis.title = element_text(size = 7.5),
+        axis.line = element_line(color="black", size = 0.1),
+        axis.text = element_text(size = 5),
+        panel.background = element_rect(fill = "white"))
+
+GDP_box <- ggplot(Bohmelt_data, aes(x = milex_class, y = LNRGDP, color = milex_class)) +
+  geom_boxplot(width = 0.2) +
+  ggtitle("GDP distribution by spending level") +
+  ylab("Log GDP") +
+  xlab("Military spending level") +
+  scale_color_manual(values = c(rgb(188,50,63, maxColorValue = 255), rgb(161,194,223, maxColorValue = 255))) +
+  theme(legend.position = "none",
+        plot.title = element_text(size = 7.5, hjust = 0.5),
+        axis.title = element_text(size = 7.5),
+        axis.text = element_text(size = 5),
+        panel.background = element_rect(fill = "white"), 
+        panel.border = element_rect(fill = NA))
+
+ggarrange(GDP_scatter, GDP_box)
+```
+
+###Foreign military spending
+
+The relationship between allied and hostile military spending and the response variables is consistent with a rational choice story. The boxplots show that, on average, high military spending by enemy states is likely to result in supernormal spending, while high allied spending is likely to result in normal spending. This is consistent with a 'free-rider' story, where countries benefit from allied expenditure, reducing the need to spend themselves (data sourced from @Bohm_2014).
+
+```{r friendfoe_box, include = TRUE}
+friends <- ggplot(Bohmelt_data, aes(x = milex_class, y = LNFRIENDS, color = milex_class)) +
+  geom_boxplot(width = 0.3) +
+  ggtitle("Allied spending distribution") +
+  xlab("Military spending level") +
+  ylab("Log allied spending") +
+  scale_color_manual(values = c(rgb(188,50,63, maxColorValue = 255), rgb(161,194,223, maxColorValue = 255))) +
+  theme(legend.position = "none",
+        plot.title = element_text(size = 7.5, hjust = 0.5),
+        axis.title = element_text(size = 7.5),
+        axis.text = element_text(size = 5),
+        panel.background = element_rect(fill = "white"), 
+        panel.border = element_rect(fill = NA))
+
+foes <- ggplot(Bohmelt_data, aes(x = milex_class, y = LNFOES, color = milex_class)) +
+  geom_boxplot(width = 0.3) +
+  ggtitle("Hostile spending distribution") +
+  xlab("Military spending level") +
+  ylab("Log hostile spending") +
+  scale_color_manual(values = c(rgb(188,50,63, maxColorValue = 255), rgb(161,194,223, maxColorValue = 255))) +
+  theme(legend.position = "none",
+        plot.title = element_text(size = 7.5, hjust = 0.5),
+        axis.title = element_text(size = 7.5),
+        axis.text = element_text(size = 5),
+        panel.background = element_rect(fill = "white"), 
+        panel.border = element_rect(fill = NA))
+
+ggarrange(friends,foes)
+```
+
+###Trade, regime type, alliances and conflict
+I also controlled for trade as a proportion of GDP and level of democracy (measured by the polity score used by @Bohm_2014). The data suggest that those with higher levels of trade tend to spend normally on their militaries, as do those with more democratic governments. This is in line with the expectation that more economically open and democratic countries are less likely to engage in conflict.  
+
+Finally, I controlled for NATO membership and current conflict. The latter has been derived from the Correlates of War militarised interstate dispute dataset [@Palm_2015], containing all dyads of countries engaged in a militarised dispute by year. A categorical variable was constructed from this dataset, coded 1 where a country was engaged in a militarised dispute and 0 otherwise. 
+```{r NATO_war}
+#at_war variable
+CoW_data <- read.csv("MIDB_4.01.csv")
+
+CoW_data <- CoW_data %>%
+  filter(StYear < 2001) %>%
+  filter(EndYear > 1991) %>%
+  select(StAbb, StYear, EndYear) %>%
+  inner_join(country_codes, by = "StAbb") %>%
+  rowwise() %>%
+  do(data.frame(Code = .$Code, YEAR = seq(.$StYear, .$EndYear, by = 1))) %>%
+  arrange(Code) %>%
+  arrange(YEAR) %>%
+  mutate(at_war = 1) %>%
+  mutate(country_year = paste(YEAR, Code)) %>%
+  select(country_year, at_war) %>%
+  distinct()
+
+Bohmelt_data <- Bohmelt_data %>%
+  full_join(CoW_data, by = "country_year")
+
+Bohmelt_data$at_war[which(is.na(Bohmelt_data$at_war))] <- 0
+
+#NATO variable
+Bohmelt_data <- Bohmelt_data %>%
+  mutate(NATO = ifelse(Code %in% 
+                         c("BEL", "CAN", "DNK", "FRA", "ISL", "ITA",
+                           "LUX", "NLD", "NOR", "PRT", "GBR", "USA", 
+                           "GRC", "TUR", "DEU", "ESP") |
+                         country_year %in% c("1999 HUN", "2000 HUN",
+                                             "1999 POL", "2000 POL"),
+                       1, 0))
+```
+
+##Techniques and models
+For the first hypothesis, a linear regression model was fitted to infer whether a significant relationship exists between sentiment score and military spending. Given the panel structure of the data, dummy variables for fixed and time effects were specified in the model. The response variable was log military expenditure and the predictor variable was sentiment score with controls as outlined above.
+
+For the second hypothesis, a logistic regression model, a random forests model and a support vector machine model (‘SVM’) were fitted to determine whether the above variables are capable of predicting normal or supernormal military spending for a given country in a given year. For the random forests model, the square root of the number of predictors was used as the number of predictors to be considered at each decision tree split. For the SVM model, a radial kernel was set to ensure adequate flexibility and the optimal cost parameter was determined through cross-validation. 
+
+Given that thresholds for the spending categories are unique to each country and year, and represent changes in military spending rather than absolute values, the risk of autocorrelation is lower than in the model fitted for the first hypothesis. Therefore, simplified models assuming cross-sectional structured data have been fitted, using the normal/supernormal classes as the response variable, with sentiment score and control variables as predictors. Predictive performance was evaluated using a validation set approach, randomly dividing the data such that 70% of observations were used to train the models and 30% held out as a test dataset. 
+ 
+#Results
+
+##Hypothesis 1
+A Breusch-Godfrey test on the initial linear model, which is shown on the left side of the table below, showed evidence of autocorrelation. No evidence of cross-sectional dependency was found. An adjusted model, with heteroscedasticity and autocorrelation consistent standard errors, is shown on the right side of the table. Sentiment score shows a small but positive association with military spending, increasing log military spending by 0.0009 for each unit increase in sentiment score, all else equal, significant to a 90% confidence level. The p-value for sentiment score suggests that at a 90% confidence level we can reject the null hypothesis, providing limited support for H1. 
+
+As expected, GDP shows the highest level of statistical significance, with higher GDP positively correlated with military spending to a 99% confidence level. Other controls are not significant in the model with adjusted standard errors. However, the 5% R squared suggests that the model does not explain much variance in the data and so we must approach its results with caution. 
+ 
+```{r H1_results, results = "hide"}
+#Finalise data for models for H1
+Final_data <- Bohmelt_data %>%
+  select(Code, YEAR, LMILEX, at_war, sentiment_score, milex_class, NATO,  DEMOC, TRADE_GDP, LNRGDP, LNFOES, LNFRIENDS)
+
+Final_data <- na.omit(Final_data) %>%
+  rename("Military_spending" = "LMILEX") %>%
+  rename("GDP" = "LNRGDP") %>%
+  rename("Trade_ratio" = "TRADE_GDP") %>%
+  rename("Democracy_score" = "DEMOC") %>%
+  rename("Allied_spending" = "LNFRIENDS") %>%
+  rename("Hostile_spending" = "LNFOES") %>%
+  rename("NATO_membership" = "NATO") %>%
+  rename("Sentiment_score" = "sentiment_score") %>%
+  rename("At_war" = "at_war")
+
+#linear regression
+
+plm.fit.1 <- plm(Military_spending ~ 
+                 At_war + Sentiment_score + NATO_membership + Democracy_score + Trade_ratio + GDP + Hostile_spending + Allied_spending, 
+               data = Final_data, index = c("Code", "YEAR"), model = "within", effect = "twoways")
+
+#pbgtest(plm.fit.1)
+#pcdtest(plm.fit.1)
+
+#serial correlation but no cross-sectional indepdendence
+
+plm.fit.3 <- coeftest(plm.fit.1, vcov = vcovHC(plm.fit.1, 
+                                             method = "arellano", 
+                                             type = "HC3"))
+
+```
+
+```{r H1_results_vis, echo = FALSE, results = "asis"}
+stargazer(plm.fit.1, plm.fit.3,
+          type = "latex",
+          title = "Military expenditure linear regression",
+          summary = TRUE,
+          header = FALSE,
+          digits = 4,
+          single.row = TRUE,
+          dep.var.labels = "Military spending")
+```
+
+##Hypothesis 2
+The best performing classifier was the random forests model, followed by the SVM model. The confusion matrices for each classifier are shown below. The focus here is on predictive performance using the test dataset – see appendix for logistic regression results.
+
+```{r H2_results}
+#classification data cleaning
+Final_data_class <- na.omit(Final_data) %>%
+  select(-Code, -YEAR, -Military_spending) 
+
+set.seed(1)
+train <- sample(1:nrow(Final_data_class), nrow(Final_data_class)*0.7, replace = FALSE)
+Final_train <- Final_data_class[train,]
+Final_test <- Final_data_class[-train,]
+
+#logistic regression
+glm.fit <- glm(formula = milex_class ~ ., family = binomial, data = Final_train)
+
+# show confusion matrix from predicted class and observed class
+confusion <- function(predicted_status, observed_status) {
+  confusion_matrix <- table(predicted_status, 
+                            observed_status,
+                            dnn = c("Predicted","Observed"))
+                          
+  confusion_matrix
+}
+#performance <- function(confusion_matrix, predicted_status, observed_status) {  
+#error_rate <- mean(predicted_status != observed_status)
+  #cat("\n") 
+  #cat("         Error Rate:", 100 * error_rate, "%\n")
+  #cat("Correctly Predicted:", 100 * (1-error_rate), "%\n")
+  #cat("False Positive Rate:", 100 * confusion_matrix[1,2] / sum(confusion_matrix[,2]), "%\n")
+  #cat("False Negative Rate:", 100 * confusion_matrix[2,1] / sum(confusion_matrix[,1]), "%\n")
+#}
+```
+
+A confusion matrix and model performance measures are shown below for the logistic regression. The error rate (76%) is high. This is driven by an extremely large number of false positives (incorrectly predicted supernormal country-years). The performance of this classifier is poor, unsurprising given the model’s rigid functional structure that is unlikely to reflect the structure of a complex prediction problem.  
+
+```{r H2_results_1}
+predicted_direction_log <- factor(ifelse(predict(glm.fit, Final_test, type = "response") > 0.5, "1", "0"), levels = c(1,0), labels = c("Supernormal", "Normal"))
+
+confusion_matrix_1 <- confusion(predicted_direction_log, Final_test$milex_class)
+#performance_1 <- performance(confusion_matrix_1,predicted_direction_log, Final_test$milex_class)
+confusion_matrix_1
+```
+
+------------------------- ------------- 
+Error rate:                   76.3%
+Correctly predicted:          23.7%
+False positive rate:          98.4%
+False negative rate:           1.4%
+------------------------- ------------- 
+
+The same measures for the SVM model are shown below. The performance of this model is better, with an error rate of 21%. However, errors are mainly due to false negatives, at 85%. The classifier is consistently misclassifying supernormal cases as normal. Supernormal cases only make up 23% of the test set, so an error rate of 21% with 85% false negatives in the context of the underlying distribution suggest that this is not a successful prediction model. 
+
+```{r H2_results_2}
+#SVM
+set.seed(1)
+svm_tune <- tune(svm, milex_class ~ ., data = Final_train, kernel = "radial",
+                 ranges = list(cost = seq(0.01, 10, length = 100)))
+svm_radial <- svm(milex_class ~ ., data = Final_train, kernel = "radial",
+                  cost = svm_tune$best.parameters$cost)
+predicted_direction_svm <- predict(svm_radial, Final_test)
+
+confusion_matrix_2 <- confusion(predicted_direction_svm, Final_test$milex_class)
+#performance_2 <- performance(confusion_matrix_2, predicted_direction_svm, Final_test$milex_class)
+confusion_matrix_2
+```
+
+------------------------- ------------- 
+Error rate:                   21.2%
+Correctly predicted:          78.7%
+False positive rate:           2.4%
+False negative rate:          85.1%
+------------------------- ------------- 
+
+Finally, the random forests model provides an incremental improvement on the SVM model, with an error rate of 20%, albeit with a comparable false negative rate of 81%. The random forests model is therefore the best performing classifier, but again the high false negatives given the test set distribution suggest that this cannot be considered a successful predictor either (see appendix for ROC plots of SVM and random forests models, which corroborate the latter's superior predictive performance).
+
+```{r H2_results_3}
+#Random forest
+set.seed(1)
+rf.fit <- randomForest(milex_class ~ ., data = Final_train, importance = TRUE)
+
+predicted_direction_rf <- predict(rf.fit, Final_test)
+
+confusion_matrix_3 <- confusion(predicted_direction_rf, Final_test$milex_class)
+#performance_3 <- performance(confusion_matrix_3, predicted_direction_rf, Final_test$milex_class)
+confusion_matrix_3
+```
+
+------------------------- ------------- 
+Error rate:                   20.3%
+Correctly predicted:          79.7%
+False positive rate:           2.4%
+False negative rate:          81.1%
+------------------------- -------------
+
+As the best performing classifier, the plot below analyses predictor importance in the random forests model. The highest mean decrease in accuracy results from the exclusion of GDP, the most important predictor on this measure. Sentiment score, in contrast, is second least important. However, in terms of node purity as measured by the Gini measure, sentiment score is ranked fourth after GDP, trade and allied spending. Overall, it is a predictor of limited importance to our model, being definitely less important than GDP, allied spending and trade, and likely less important than democracy score. Given that sentiment score is of doubtful importance in a relatively unsuccessful prediction model, we cannot reject the null hypothesis that predictions from the model are insignificant.
+
+```{r importance_vis,include = TRUE}
+#importance visualisation
+import_matrix <- data.frame(importance(rf.fit))
+
+import_matrix_acc <- import_matrix %>%
+  mutate(rownames(import_matrix)) %>%
+  rename("Variables" = "rownames(import_matrix)") %>%
+  arrange(MeanDecreaseAccuracy) 
+rownames(import_matrix_acc) <- import_matrix_acc$Variables
+
+accur_plot <- ggplot(import_matrix_acc, aes(x = rownames(import_matrix_acc), y = MeanDecreaseAccuracy)) +
+  geom_bar(stat = "identity", fill = rgb(161,194,223, maxColorValue = 255)) +
+  coord_flip() +
+  scale_x_discrete(limits = rownames(import_matrix_acc)) +
+  xlab("Predictor variable") +
+  ylab("Mean Decrease Accuracy") +
+  ggtitle("Mean Decrease Accuracy") +
+  theme(legend.position = "none",
+        plot.title = element_text(size = 7.5, hjust = 0.5),
+        axis.title = element_text("",size = 7.5),
+        axis.text = element_text(size = 5),
+        panel.background = element_rect(fill = "white"), 
+        panel.border = element_rect(fill = NA))
+
+import_matrix_gin <- import_matrix %>%
+  mutate(rownames(import_matrix)) %>%
+  rename("Variables" = "rownames(import_matrix)") %>%
+  arrange(MeanDecreaseGini) 
+rownames(import_matrix_gin) <- import_matrix_gin$Variables
+
+gini_plot <- ggplot(import_matrix_gin, aes(x = rownames(import_matrix_gin), y = MeanDecreaseGini)) +
+  geom_bar(stat = "identity", fill = rgb(161,194,223, maxColorValue = 255)) +
+  coord_flip() +
+  scale_x_discrete(limits = rownames(import_matrix_gin)) +
+  xlab("Predictor variable") +
+  ylab("Mean Decrease Gini") +
+  ggtitle("Mean Decrease Gini") +
+  theme(legend.position = "none",
+        plot.title = element_text(size = 7.5, hjust = 0.5),
+        axis.title = element_text("",size = 7.5),
+        axis.text = element_text(size = 5),
+        panel.background = element_rect(fill = "white"), 
+        panel.border = element_rect(fill = NA))
+
+ggarrange(accur_plot, gini_plot)
+```
+
+#Conclusion
+
+Sentiment score showed a higher level of significance than other variables apart from GDP and was significant to a 90% confidence level in a regression on military spending. However, predictive models performed poorly. While we cannot consider any of these findings definitive, the findings regarding H1 are a useful precursor to further possible research, particularly given that the empirical study of emotional, non-rational motivations in international relations is in its infancy. 
+
+However, there are some limitations to address.  The sentiment score itself focuses too much on changes from year to year, particularly given its arbitrary indexing to a base year. This fails to capture prolonged periods of emotional linguistic usage and hence some important information may be lost in its construction. Furthermore, UN General Debate speeches are arguably too crafted to contain genuinely emotive language – electoral campaign speeches, for example, may be better for this purpose. In addition, clearer trends might emerge over a longer time series, and further consideration of time effects should be worked into future research. For instance, the impact of foreign military spending or increases in trade may act on military expenditure on a lag. Nevertheless, this paper makes progress in demonstrating that linguistic usage and turns of phrase, in addition to substantive content of speeches, may assist foreign policy formulation and generate useful data for academic study. 
+
+\newpage
+
+#Appendix
+
+```{r, results = "asis"}
+stargazer(glm.fit,
+          type = "latex",
+          title = "Logistic regression model",
+          summary = TRUE,
+          header = FALSE,
+          digits = 4,
+          single.row = TRUE,
+          dep.var.labels = "Supernormal military spending")
+```
+
+```{r, echo = FALSE, results = "hide"}
+library(ROCR)
+rocplot <- function(pred, truth,...) {
+  predob=prediction(pred, truth)
+  perf=performance(predob, "tpr", "fpr")
+  plot(perf,...)
+}
+
+set.seed(1)
+svm.opt <- svm(milex_class ~ ., data = Final_train, kernel = "radial", cost = svm_tune$best.parameters$cost, decision.values = T)
+rf.opt <- randomForest(milex_class ~ ., data = Final_train, importance = TRUE, type = "prob")
+
+fitted <- attributes(predict(svm.opt, Final_test,decision.values=T))$decision.values
+predictions_3 <- prediction(fitted[,1],Final_test$milex_class)
+predictions <- predict(rf.opt, Final_test, type = "prob")
+predictions_2 <- prediction(predictions[,1], Final_test$milex_class)
+#remove #'s to print auc's for each model
+#performance(predictions_2, measure = "auc")
+#performance(predictions_3, measure = "auc")
+```
+
+```{r, echo = FALSE}
+par(mfrow = c(1,2))
+rocplot(fitted, Final_test$milex_class, main = "SVM ROC")
+rocplot(predictions[,1], Final_test$milex_class, main = "Random forest ROC")
+```
+
+--------------- -------
+**AUC**
+Random forest    79.1%
+SVM              69.7%
+--------------- -------
+
+\newpage
+
+#References
+
+
+
