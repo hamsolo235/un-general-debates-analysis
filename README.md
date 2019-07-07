@@ -25,6 +25,6 @@ Mohammad, Saif M., and Peter D. Turney. 2013. “Crowdsourcing a Word-Emotion As
 The paper uses an LDA topic model to identify foreign policy and security related topics in the UN GD speeches between 1991 and 2001. The posterior document probablities were extracted from the model and used as weights applied to word counts of fear- and anger-related words as set out in Mohammad and Turney's (2013) sentiment lexicon. The resulting sentiment scores were used firstly in a panel linear regression model on military spending levels, and in a series of classification models (logistic regression, random forest and SVM) that attempted to classify a validation set of year-country pairs as demonstrating 'supernormal' military spending. 'Supernormal' was defined as being at least one standard deviation above the decade rolling average up to a given year.
 
 ## What's in the repository
-I provide the original R markdown, the rendered pdf that was submitted for the course, and other required files for knitting the markdown. The data sets are not included here but can be sourced using the references above in the 'Data' section. 
+I provide the original R markdown file (.Rmd), which contains my code and write-up, the rendered pdf that was submitted for the course, and other required files for knitting the markdown. The data sets are not included here but can be sourced using the references above in the 'Data' section. 
 
 
